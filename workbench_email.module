@@ -1,0 +1,175 @@
+<?php
+// $Id$
+/**
+* A module that emails editorial when content needs reviewing.
+*/
+
+define('USER_WARN_MAIL_SUBJECT', 'Content Ready for Review');
+define('USER_WARN_MAIL_TEXT',
+'Hello Editorial,
+
+There is some content that is ready for your review.
+
+Sincerely,
+[site:name]
+[site:mail]');
+
+/**
+* Implements hook_help()
+*/
+
+function workbench_email_help($path, $arg)
+{
+	if ($path == 'admin/help#workbench_email')
+	{
+		return t('A module that emails editorial when content needs reviewing.');
+	}
+}
+
+function workbench_contents()
+{
+	
+
+    // Use Drupal Database API to retrieve current posts
+    $query = db_select('workbench_moderation_node_history', 'n')->extend('TableSort')
+            ->fields('n', array('hid', 'state'))
+            ->condition('state', 'needs_review')
+            ->execute();
+
+    return $query;
+	
+}
+
+
+function workbench_email_action_info()
+{
+	return array(
+	'send_email' => array(
+		'type' => 'node',
+		'label' => 'Workbench Email Notification',
+		'configurable' => FALSE,
+		'triggers' => array('node_insert','node_update'),
+		),
+	);
+			
+}
+
+function send_email()
+{
+	 $result = workbench_contents();
+
+     // array to contain items for the block to render
+     $items = array();
+
+     // Iterate over the result set and format as links
+
+     foreach ($result as $node)
+     {
+           $items[] = array(
+
+           'data' => l($node->state, 'node/' .  $node->hid),
+
+           );
+		   if (!empty($items))
+		   {
+			   drupal_mail(
+    				'workbench_email', 
+    					'state', 
+    					'dxladner@mac.com', 
+    					variable_get('site_mail', NULL),
+    					TRUE
+	
+					);
+		   }
+     }   
+}
+
+
+
+/**
+ * Implement hook_mail().
+ */
+function workbench_email_mail($key, &$message, $params) {
+  switch ($key) {
+    case 'state':
+      $account = $params['account'];
+      $subject = variable_get('user_warn_email_subject', USER_WARN_MAIL_SUBJECT);
+      $body = variable_get('user_warn_email_text', USER_WARN_MAIL_TEXT);
+
+      if (variable_get('user_warn_bcc', FALSE)) {
+        $admin_mail = variable_get('site_mail', NULL);
+        $message['headers']['bcc'] = $admin_mail;
+      }
+
+      $message['to'] = 'dxladner@mac.com';
+      $message['subject'] = $subject;
+      $message['body'][] = token_replace($body, array('user' => $account));
+      break;
+  }
+}
+
+
+/**
+* Implements hook_block_info().
+*/
+
+function workbench_email_block_info()
+{
+	$blocks = array();
+	$blocks['workbench_list'] = array('info' => t('Workbench Lists'),
+	'cache' =>DRUPAL_NO_CACHE,
+	);
+	return $blocks;
+	
+	
+  
+}
+
+/**
+* Implements hook_block_view
+*/
+
+function workbench_email_block_view($delta = ' ')
+{
+    switch($delta)
+    {
+        case 'workbench_list':
+
+            $block['subject'] = t('workbench list');
+            if (user_access('access content'))
+            {
+                 // use our custom function to retrieve data
+                $result = workbench_contents();
+
+                // array to contain items for the block to render
+                $items = array();
+
+                // Iterate over the result set and format as links
+
+                foreach ($result as $node)
+                {
+                    $items[] = array(
+
+                        'data' => l($node->state, 'node/' .  $node->hid),
+
+                    );
+                }
+                if (empty($items))
+                {
+                    $block['content'] = t('No data available.');
+                }
+                else
+                {
+                    $block['content'] = theme('item_list', array(
+                    'items' => $items));
+                }
+            }
+    }
+
+    return $block;
+
+}
+
+
+
+

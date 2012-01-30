@@ -1,0 +1,6 @@
+;$Id$
+name = Workbench Email
+description = A module that emails editorial when content needs reviewing.
+package = Drupal 7 Development
+core = 7.x
+files[] = workbench_email.module
